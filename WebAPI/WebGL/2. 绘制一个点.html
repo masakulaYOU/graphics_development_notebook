@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>绘制一个点</title>
+</head>
+<body onload="main()">
+	<canvas id="glcanvas" width="640" height="480">
+		您的浏览器似乎不支持或者禁用了HTML5 <code>&lt;canvas&gt;</code>元素
+	</canvas>
+</body>
+<script>
+	const vsSource = `
+		void main() {
+			gl_Position = vec4(0.0, 0.0, 0.0, 0.0);
+		}
+	`;
+	const fsSource = `
+		void main() {
+			gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+		}
+	`
+
+	function main() {
+		const canvas = document.querySelector("#glcanvas");
+		// 初始化WebGL上下文
+		const gl = canvas.getContext("webgl");
+
+		// 确认 WebGL支持性
+		if (!gl) {
+			alert("无法初始化WebGL，您的浏览器、操作系统或硬件等可能不支持WebGL。");
+			return;
+		}
+
+		const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+		
+		const programInfo = {
+			program: shaderProgram,
+			attribLocations: {
+				vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+			},
+			uniformLocations: {
+				projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix')
+			}
+		}
+
+		// 使用完全不透明的黑色清楚所有图像
+		gl.clearColor(0.0, 0.0, 0.0, 1.0);
+		// 使用指定的颜色清除缓冲区
+		gl.clear(gl.COLOR_BUFFER_BIT);
+	}
+
+	function initShaderProgram(gl, vsSource, fsSource) {
+		// 创建顶点和片元shader对象
+		const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+		const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+		// 创建着色器程序
+		const shaderProgram = gl.createProgram();
+		// 着色器程序绑定shader
+		gl.attachShader(shaderProgram, vertexShader);
+		gl.attachShader(shaderProgram, fragmentShader);
+		// 链接程序
+		gl.linkProgram(shaderProgram);
+
+		// 链接成功后就可删除shader，避免内存泄漏
+		gl.deleteShader(vertexShader);
+		gl.deleteShader(fragmentShader);
+
+		// 检查program是否创建成功
+		if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+
+			alert(`Unable to initialize the shader program: ${gl.getProgramInfoLog(shaderProgram)}.`);			
+			// 清除program
+			gl.deleteProgram(shaderProgram);
+			return null;
+		}
+
+		return shaderProgram;
+	}
+
+	function loadShader(gl, type, source) {
+		// 创建shader对象
+		const shader = gl.createShader(type);
+
+		// 将源程序送入shader对象
+		gl.shaderSource(shader, source);
+
+		// 编译shader
+		gl.compileShader(shader);
+
+		// 查看shader状态，是否编译成功
+		if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+			alert('An error occurred compling the shaders: ' + gl.getShaderInfoLog(shader));
+			// 如果编译失败就删除shader
+			gl.deleteShader(shader);
+			return null;
+		}
+
+		return shader;
+	}
+</script>
+</html>
