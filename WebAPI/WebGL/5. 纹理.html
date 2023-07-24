@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body onload="main()">
+  
+</body>
+<script>
+  const VSHADER_SOURCE = `
+    attribute vec4 a_Position;
+    attribute vec2 a_TexCoord;
+    varying vec2 v_TexCoord;
+    void main() {
+      gl_Position = a_Position;
+      v_TexCoord = a_TexCoord;
+    }
+  `;
+
+  const FSHADER_SOURCE = `
+    precision mediump float;
+    uniform sampler2D u_Sampler;
+    varying vec2 v_TexCoord;
+    void main() {
+      gl_FragColor = texture2D(u_Sampler, v_TexCoord);
+    }
+  `;
+
+  function main() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 580;
+    document.body.appendChild(canvas);
+
+    const gl = canvas.getContext("webgl");
+    if (!gl) {
+      alert("Failed to get the rendering context for WebGL!");
+      return;
+    }
+
+    const shaderProgram = initShaderProgram(gl, VSHADER_SOURCE, FSHADER_SOURCE);
+    if (!shaderProgram) {
+      alert("initShaderProgram failed!")
+      return;
+    };
+
+    const n = initVertexBuffer(gl, shaderProgram);
+    if (n < 0) {
+      alert("initVertexBuffer failed!");
+      return;
+    };
+
+    gl.clearColor(0.0, 0.0, 1.0, 1.0);
+
+
+    if (!initTextures(gl, shaderProgram, n, "./box256.png")) {
+      alert("Failed to initizalize textures");
+      return;
+    }
+
+    
+    // gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    // gl.clear(gl.COLOR_BUFFER_BIT);
+  }
+
+  function initShaderProgram(gl, vsSource, fsSource) {
+    const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+    const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+    if (!vertexShader) {
+      alert("Failed to load vertex shaders!");
+      return null;
+    };
+
+    if (!fragmentShader) {
+      alert("Failed to load fragment shaders!");
+      return null;
+    }
+
+    const shaderProgram = gl.createProgram();
+
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+
+    gl.linkProgram(shaderProgram);
+
+    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+      alert("Filed to initialize WebGL program: " + gl.getProgramInfoLog(shaderProgram));
+      gl.deleteProgram(shaderProgram);
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+
+      return null;
+    }
+
+    gl.useProgram(shaderProgram);
+    return shaderProgram;
+  }
+
+  function loadShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      alert("Failed to compile shader: " + gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+
+    return shader;
+  }
+
+  function initVertexBuffer(gl, program) {
+    const vertexTexCoords = new Float32Array([
+      -0.5,  0.5, 0.0, 1.0,
+      -0.5, -0.5, 0.0, 0.0,
+       0.5,  0.5, 1.0, 1.0,
+       0.5, -0.5, 1.0, 0.0
+    ]);
+
+    const n = 4;  // 四个点
+
+    const vertexTexCoordBuffer = gl.createBuffer();
+    if (!vertexTexCoordBuffer) {
+      alert("Failed to create the buffer object");
+      return -1;
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexTexCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertexTexCoords, gl.STATIC_DRAW);
+
+    const FSIZE = vertexTexCoords.BYTES_PER_ELEMENTS;
+
+    const a_Position = gl.getAttribLocation(program, 'a_Position');
+    if (a_Position < 0) {
+      alert('Failed to get the storage location of a_Position');
+      return -1;
+    }
+
+    const a_TexCoord = gl.getAttribLocation(program, 'a_TexCoord');
+    if (a_TexCoord < 0) {
+      alert('Failed to get the storage location of a_TexCoord');
+      return -1;
+    }
+
+    gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, FSIZE * 4, 0);
+    gl.enableVertexAttribArray(a_Position);
+
+    gl.vertexAttribPointer(a_TexCoord, 2, gl.FLOAT, false, FSIZE * 4, FSIZE * 2);
+    gl.enableVertexAttribArray(a_TexCoord);
+
+    return n;
+  }
+
+  function initTextures(gl, program, n, src) {
+    const texture = gl.createTexture();
+    if (!texture) {
+      alert("Failed to create texture object");
+      return false;
+    }
+
+    const u_Sampler = gl.getUniformLocation(program, 'u_Sampler');
+    if (u_Sampler < 0) {
+      alert("Failed to get the storage location of u_Sampler");
+      return false;
+    }
+
+    const image = new Image();
+    image.onload = function() {
+      loadTexture(gl, n, texture, u_Sampler, image);
+    }
+
+    image.src = src;
+
+    return true;
+  }
+
+  function loadTexture(gl, n, texture, u_Sampler, image) {
+    gl.pixelStorei(gl.UNPACK_CLIP_Y_WEBGL, 1);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+
+    gl.uniform1i(u_Sampler, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, n);
+  }
+  
+</script>
+</html>
